@@ -1,3 +1,9 @@
+"""
+Bonjour, Taeki!
+
+还有个参数等待你调整，如果你可以找到的话 >w<
+"""
+
 from tkinter import *
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
@@ -8,6 +14,8 @@ import os
 import colorsys
 import cv2
 from scipy.ndimage.filters import gaussian_filter
+# import threading
+# import datetime
 
 canvas_width = 600
 canvas_height = 600
@@ -60,8 +68,11 @@ output_dir = "./output"
 image_fmt = "jpg"
 
 # 文字参数
-text_display_time = 3000  # 文字显示时间从5000毫秒减少到2000毫秒
+text_display_time = 3000  # 文字显示时间
 text_font_size = 80
+
+
+# Taeki 是什么意思呢
 text_content = "To Taeki"
 heart_display_cycles = 3  # 心形显示循环次数
 
@@ -275,7 +286,6 @@ def get_color(strength):
     return np.array((r, g, b), dtype=int)
 
 
-# 可以根据深度做一些好玩的
 def draw_point_on_buffer(x, y, color, depth):
     if x < 0 or x >= canvas_width or y < 0 or y >= canvas_height:
         return
@@ -381,6 +391,10 @@ def generate_text_image():
     # 计算居中位置
     position = ((canvas_width - text_width) // 2, (canvas_height - text_height) // 2)
 
+
+# What's your favorite color?
+
+
     # 使用天蓝色绘制文字
     text_hue = 0.55  # 天蓝色的HSV色相值
     text_saturation = 0.85  # 饱和度
@@ -407,7 +421,7 @@ def generate_text_image():
     return text_path
 
 
-def show_images():
+def heart_for_taeki():
     img = None
     text_img_path = None
 
@@ -418,8 +432,31 @@ def show_images():
                 save_name = "{name}.{fmt}".format(name=i, fmt=image_fmt)
                 save_path = os.path.join(output_dir, save_name)
                 img = cv2.imread(save_path, cv2.IMREAD_ANYCOLOR)
-                cv2.imshow("Img", img)
-                cv2.waitKey(45)  # 将等待时间从60毫秒减少到45毫秒，加快切换速度
+                cv2.imshow("Taeki", img)
+
+
+                """
+                 _   _   _____   _       _        ___         _____      _      _____   _  __  ___
+                | | | | | ____| | |     | |      / _ \       |_   _|    / \    | ____| | |/ / |_ _|
+                | |_| | |  _|   | |     | |     | | | |        | |     / _ \   |  _|   | ' /   | |
+                |  _  | | |___  | |___  | |___  | |_| |        | |    / ___ \  | |___  | . \   | |
+                |_| |_| |_____| |_____| |_____|  \___/         |_|   /_/   \_\ |_____| |_|\_\ |___|
+
+                To Taeki:
+                    You find it !!! Congratulation !!!
+                    Change the waitKey time so that the heart rates change
+                    This is the argument that I don't know really
+                        because that is your heart lol
+                    So maybe you could tell me when we actually meet in reality
+
+                                                                   from Polaris
+                """
+
+                key = cv2.waitKey(45) & 0xFF  # 将等待时间从60毫秒减少到45毫秒，加快切换速度
+                if key == 27:
+                    cv2.destroyAllWindows()
+                    return
+
 
         # 生成并显示文字，仅在第一次循环时生成
         if text_img_path is None:
@@ -427,9 +464,11 @@ def show_images():
 
         # 显示文字
         text_img = cv2.imread(text_img_path, cv2.IMREAD_ANYCOLOR)
-        cv2.imshow("Img", text_img)
-        cv2.waitKey(text_display_time)  # 文字显示指定时间
-
+        cv2.imshow("Taeki", text_img)
+        key = cv2.waitKey(text_display_time) & 0xFF # 文字显示指定时间
+        if key == 27:
+            cv2.destroyAllWindows()
+            return
 
 def gen_images():
     global points
@@ -457,8 +496,19 @@ def gen_images():
         paint_heart(ratio, randratio, save_path)
         print("图片已保存至", save_path)
 
+def main():
+    print("开始生成心形图像...请耐心等待>w<")
+    gen_images()
+    print("心形图像生成完毕，开始展示心形动画...")
+    print("按 ESC 键退出动画")
+    try:
+        heart_for_taeki()
+    except KeyboardInterrupt:
+        print("动画已中断")
+    finally:
+        cv2.destroyAllWindows()
+        print("程序已退出")
+
 
 if __name__ == "__main__":
-    gen_images()
-    while True:
-        show_images()
+    main()
