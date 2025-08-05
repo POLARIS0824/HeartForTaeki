@@ -14,8 +14,8 @@ import os
 import colorsys
 import cv2
 from scipy.ndimage.filters import gaussian_filter
-# import threading
-# import datetime
+import threading
+import datetime
 
 canvas_width = 600
 canvas_height = 600
@@ -71,10 +71,232 @@ image_fmt = "jpg"
 text_display_time = 3000  # 文字显示时间
 text_font_size = 80
 
-
 # Taeki 是什么意思呢
 text_content = "To Taeki"
 heart_display_cycles = 3  # 心形显示循环次数
+
+
+class DebugConsole:
+    def __init__(self):
+        self.root = Tk()
+        self.root.title("Heart Animation - Debug Console")
+        self.root.geometry("700x500")
+        self.root.resizable(True, True)
+
+        # 居中窗口
+        self.root.eval('tk::PlaceWindow . center')
+
+        # 创建滚动文本框
+        self.text_frame = Frame(self.root)
+        self.text_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+
+        # 文本框和滚动条
+        self.text_widget = Text(self.text_frame, wrap=WORD, font=("Consolas", 10),
+                               bg="black", fg="cyan", insertbackground="white")
+        self.scrollbar = Scrollbar(self.text_frame, orient=VERTICAL, command=self.text_widget.yview)
+        self.text_widget.configure(yscrollcommand=self.scrollbar.set)
+
+        # 布局
+        self.text_widget.pack(side=LEFT, fill=BOTH, expand=True)
+        self.scrollbar.pack(side=RIGHT, fill=Y)
+
+        # 按钮框架
+        self.button_frame = Frame(self.root)
+        self.button_frame.pack(fill=X, padx=10, pady=5)
+
+        # 开始按钮
+        self.start_button = Button(self.button_frame, text="开始生成动画", command=self.start_generation,
+                                 bg="#4CAF50", fg="white", font=("Arial", 12), height=2, width=15)
+        self.start_button.pack(side=LEFT, padx=5)
+
+        # 清空按钮
+        self.clear_button = Button(self.button_frame, text="清空日志", command=self.clear_log,
+                                 bg="#2196F3", fg="white", font=("Arial", 10), height=2, width=10)
+        self.clear_button.pack(side=LEFT, padx=5)
+
+        # 退出按钮
+        self.exit_button = Button(self.button_frame, text="退出程序", command=self.exit_app,
+                                bg="#f44336", fg="white", font=("Arial", 10), height=2, width=10)
+        self.exit_button.pack(side=RIGHT, padx=5)
+
+        self.generation_started = False
+
+    def log(self, message, color="cyan"):
+        """添加日志到文本框"""
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        self.text_widget.insert(END, f"[{timestamp}] {message}\n")
+        self.text_widget.see(END)
+        self.root.update()
+
+    def clear_log(self):
+        """清空日志"""
+        self.text_widget.delete(1.0, END)
+
+    def start_generation(self):
+        """开始生成动画"""
+        if not self.generation_started:
+            self.generation_started = True
+            self.start_button.config(state=DISABLED, text="生成中...", bg="#FF9800")
+            self.log("=" * 60)
+            self.log("开始生成心形动画...")
+            self.log("=" * 60)
+            # 在新线程中运行生成过程
+            threading.Thread(target=self.run_generation, daemon=True).start()
+
+    def run_generation(self):
+        """在后台运行生成过程"""
+        try:
+            # 生成图像
+            self.generate_with_debug()
+            # 生成完成后的处理
+            self.root.after(0, self.on_generation_complete)
+
+        except Exception as e:
+            self.root.after(0, lambda: self.log(f"❌ 错误: {str(e)}", "red"))
+            self.root.after(0, lambda: self.start_button.config(state=NORMAL, text="开始生成动画", bg="#4CAF50"))
+
+    def generate_with_debug(self):
+        """带调试信息的生成函数"""
+        global points
+
+        self.root.after(0, lambda: self.log("🔍 检查输出目录..."))
+        if not os.path.isdir(output_dir):
+            os.mkdir(output_dir)
+            self.root.after(0, lambda: self.log("📁 已创建输出目录: " + output_dir))
+        else:
+            self.root.after(0, lambda: self.log("📁 输出目录已存在: " + output_dir))
+
+        # 检查缓存文件
+        if not os.path.exists(points_file):
+            self.root.after(0, lambda: self.log("⚠️  未发现缓存文件，开始生成心形数据..."))
+            self.root.after(0, lambda: self.log(f"🔄 正在生成 {fixed_point_size} 个心形点，请耐心等待..."))
+            self.root.after(0, lambda: self.log("💡 首次运行需要几分钟，后续会使用缓存文件"))
+
+            points = self.genPoints_with_debug(fixed_point_size, fixed_scale_range)
+            np.savetxt(points_file, points)
+            self.root.after(0, lambda: self.log("✅ 心形数据生成完成，已保存缓存文件"))
+        else:
+            self.root.after(0, lambda: self.log("📂 发现缓存文件，正在加载..."))
+            points = np.loadtxt(points_file)
+            self.root.after(0, lambda: self.log("✅ 缓存文件加载完成"))
+
+        # 生成动画帧
+        self.root.after(0, lambda: self.log(f"🎬 开始生成 {total_frames} 帧动画..."))
+
+        for i in range(total_frames):
+            self.root.after(0, lambda i=i: self.log(f"🎨 正在生成第 {i+1}/{total_frames} 帧..."))
+
+            frame_ratio = float(i) / (total_frames - 1)
+            frame_ratio = frame_ratio ** 2
+            ratio = math.sin(frame_ratio * math.pi) * 0.743144
+            randratio = math.sin(frame_ratio * math.pi * 2 + total_frames / 2)
+            save_name = "{name}.{fmt}".format(name=i, fmt=image_fmt)
+            save_path = os.path.join(output_dir, save_name)
+
+            paint_heart(ratio, randratio, save_path)
+
+            # 更新进度
+            progress = ((i + 1) / total_frames) * 100
+            self.root.after(0, lambda p=progress, i=i: self.log(f"📊 进度: {p:.1f}% - 已保存: {save_name}"))
+
+        self.root.after(0, lambda: self.log("🎉 所有动画帧生成完成！"))
+        self.root.after(0, lambda: self.log("🎭 准备播放动画..."))
+
+    def genPoints_with_debug(self, pointCount, heartScales):
+        """带调试信息的点生成函数"""
+        result = np.empty((pointCount, 3))
+        index = 0
+        last_reported = 0
+
+        while index < pointCount:
+            # 生成随机点
+            x = random.random()
+            y = random.random()
+            z = random.random()
+
+            # 扣掉心中间的点
+            mheartValue = heart_func(x, 0.5, z, heartScales[1])
+            mid_ignore = random.random()
+            if mheartValue < 0 and mid_ignore < mid_point_ignore:
+                continue
+
+            heartValue = heart_func(x, y, z, heartScales[0])
+            z_shrink = 0.01
+            sz = z - z_shrink
+            sheartValue = heart_func(x, y, sz, heartScales[1])
+
+            # 保留在心边上的点
+            if heartValue < 0 and sheartValue > 0:
+                result[index] = [x - 0.5, y - 0.5, z - 0.5]
+
+                # 向内扩散
+                len = 0.7
+                result[index] = result[index] * (1 - len * inside_rand(0.2))
+
+                # 重新赋予深度
+                newY = random.random() - 0.5
+                rheartValue = heart_func(result[index][0] + 0.5, newY + 0.5, result[index][2] + 0.5, heartScales[0])
+                if rheartValue > 0:
+                    continue
+                result[index][1] = newY
+
+                # 删掉肚脐眼
+                dist = distance(result[index])
+                if dist < 0.12:
+                    continue
+
+                index = index + 1
+
+                # 每生成1000个点报告一次进度
+                if index % 1000 == 0 and index != last_reported:
+                    last_reported = index
+                    progress = (index / pointCount) * 100
+                    self.root.after(0, lambda p=progress, idx=index: self.log(f"⭐ 已生成 {idx} 个点 ({p:.1f}%)"))
+
+        return result
+
+    def on_generation_complete(self):
+        """生成完成后的处理"""
+        self.log("-" * 60)
+        self.log("🎊 生成完成！准备播放动画...")
+        self.log("💡 按 ESC 键可以退出动画")
+        self.log("-" * 60)
+
+        # 延迟3秒后关闭调试窗口并播放动画
+        self.start_button.config(text="即将播放...", bg="#9C27B0")
+        self.root.after(3000, self.start_animation)
+
+    def start_animation(self):
+        """开始播放动画"""
+        self.root.destroy()  # 关闭调试窗口
+
+        # 播放动画
+        try:
+            heart_for_taeki()
+        except KeyboardInterrupt:
+            print("动画已中断")
+        finally:
+            cv2.destroyAllWindows()
+
+    def exit_app(self):
+        """退出应用"""
+        self.root.destroy()
+
+    def run(self):
+        """运行调试控制台"""
+        self.log("💖 Heart For Taeki - Debug Console")
+        self.log("🎯 By Polaris")
+        self.log("🎁 To Taeki")
+        self.log("-" * 60)
+        self.log("📝 使用说明:")
+        self.log("   1. 点击 '开始生成动画' 按钮开始")
+        self.log("   2. 首次运行需要生成心形数据，可能需要几分钟")
+        self.log("   3. 后续运行会使用缓存，速度会更快")
+        self.log("   4. 生成完成后会自动播放动画")
+        self.log("   5. 动画播放时按 ESC 键退出")
+        self.log("-" * 60)
+        self.log("⏳ 记得要结束程序按 ESC 哦...")
+        self.root.mainloop()
 
 
 def color(value):
@@ -391,9 +613,7 @@ def generate_text_image():
     # 计算居中位置
     position = ((canvas_width - text_width) // 2, (canvas_height - text_height) // 2)
 
-
-# What's your favorite color?
-
+    # What's your favorite color?
 
     # 使用天蓝色绘制文字
     text_hue = 0.55  # 天蓝色的HSV色相值
@@ -434,7 +654,6 @@ def heart_for_taeki():
                 img = cv2.imread(save_path, cv2.IMREAD_ANYCOLOR)
                 cv2.imshow("Taeki", img)
 
-
                 """
                  _   _   _____   _       _        ___         _____      _      _____   _  __  ___
                 | | | | | ____| | |     | |      / _ \       |_   _|    / \    | ____| | |/ / |_ _|
@@ -446,17 +665,21 @@ def heart_for_taeki():
                     You find it !!! Congratulation !!!
                     Change the waitKey time so that the heart rates change
                     This is the argument that I don't know really
-                        because that is your heart lol
-                    So maybe you could tell me when we actually meet in reality
+                        because that is your heart rate lol
+                    So maybe you could tell me that when we actually meet in reality (bushi)
 
                                                                    from Polaris
                 """
 
-                key = cv2.waitKey(45) & 0xFF  # 将等待时间从60毫秒减少到45毫秒，加快切换速度
+                key = cv2.waitKey(45) & 0xFF  # 等待时间45毫秒，加快切换速度
+
+                """
+                That's it, try to change 45 this value, and see how the heart beats change
+                """
+
                 if key == 27:
                     cv2.destroyAllWindows()
                     return
-
 
         # 生成并显示文字，仅在第一次循环时生成
         if text_img_path is None:
@@ -470,44 +693,12 @@ def heart_for_taeki():
             cv2.destroyAllWindows()
             return
 
-def gen_images():
-    global points
-
-    if not os.path.isdir(output_dir):
-        os.mkdir(output_dir)
-
-    # 尝试加载或生成中间心
-    if not os.path.exists(points_file):
-        print("未发现缓存点，重新生成中")
-        points = genPoints(fixed_point_size, fixed_scale_range)
-        np.savetxt(points_file, points)
-    else:
-        print("发现缓存文件，跳过生成")
-        points = np.loadtxt(points_file)
-
-    for i in range(total_frames):
-        print("正在处理图片... ", i)
-        frame_ratio = float(i) / (total_frames - 1)
-        frame_ratio = frame_ratio ** 2
-        ratio = math.sin(frame_ratio * math.pi) * 0.743144
-        randratio = math.sin(frame_ratio * math.pi * 2 + total_frames / 2)
-        save_name = "{name}.{fmt}".format(name=i, fmt=image_fmt)
-        save_path = os.path.join(output_dir, save_name)
-        paint_heart(ratio, randratio, save_path)
-        print("图片已保存至", save_path)
 
 def main():
-    print("开始生成心形图像...请耐心等待>w<")
-    gen_images()
-    print("心形图像生成完毕，开始展示心形动画...")
-    print("按 ESC 键退出动画")
-    try:
-        heart_for_taeki()
-    except KeyboardInterrupt:
-        print("动画已中断")
-    finally:
-        cv2.destroyAllWindows()
-        print("程序已退出")
+    """修改后的主函数"""
+    # 创建并运行调试控制台
+    console = DebugConsole()
+    console.run()
 
 
 if __name__ == "__main__":
