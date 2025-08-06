@@ -83,6 +83,9 @@ class DebugConsole:
         self.root.geometry("700x500")
         self.root.resizable(True, True)
 
+        # 设置最小窗口尺寸
+        self.root.minsize(600, 500)
+
         # 居中窗口
         self.root.eval('tk::PlaceWindow . center')
 
